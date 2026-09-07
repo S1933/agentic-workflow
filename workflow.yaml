@@ -1,0 +1,263 @@
+version: 1
+
+roles:
+  expert:
+    responsibilities:
+      - analysis
+      - interview
+      - design
+      - diagnosis
+      - planning
+      - review
+
+  worker:
+    responsibilities:
+      - implementation
+      - plan_execution
+      - targeted_fixes
+      - related_tests
+
+shared:
+  transitions: manual
+  final_validation: human
+
+workflows:
+  feature:
+    requires:
+      - functional_request
+      - acceptance_criteria
+
+    steps:
+      - interview:
+          role: expert
+          optional: true
+
+      - analysis:
+          role: expert
+          requires:
+            - functional_request
+            - acceptance_criteria
+          inspect:
+            - existing_code
+            - neighboring_patterns
+
+      - design:
+          role: expert
+          requires:
+            - analysis_completed
+
+      - spec:
+          role: expert
+          requires:
+            - design_validated_by_human
+          source_of_truth: parent_ticket
+
+      - tasks:
+          role: expert
+          requires:
+            - spec_published
+          validation: human
+
+      - backend:
+          role: worker
+          optional: true
+          requires:
+            - tasks_validated_by_human
+          task_mode: one_at_a_time
+          session: fresh_per_task
+          context:
+            - parent_ticket
+            - child_task
+            - spec
+            - acceptance_criteria
+            - available_technical_context
+          tests: related_only
+          fallback:
+            role: expert
+            requires:
+              - human_decision
+            session: fresh
+
+      - backend_check:
+          optional: true
+          requires:
+            - backend_tasks_completed
+            - related_tests_passed
+            - manual_backend_validation
+
+      - frontend:
+          role: worker
+          optional: true
+          requires:
+            - tasks_validated_by_human
+            - backend_check_completed_when_applicable
+          task_mode: one_at_a_time
+          session: fresh_per_task
+          context:
+            - parent_ticket
+            - child_task
+            - spec
+            - acceptance_criteria
+            - available_technical_context
+          tests: related_only
+          fallback:
+            role: expert
+            requires:
+              - human_decision
+            session: fresh
+
+      - e2e:
+          requires:
+            - all_tasks_completed
+            - related_tests_passed
+          mode: manual
+
+      - review:
+          role: expert
+          requires:
+            - e2e_passed
+          trigger: manual
+          input:
+            diff: full_against_target_branch
+            commit_history: ignored
+          focus:
+            - bugs
+            - regressions
+          tests: not_run
+          findings:
+            blocking: task
+            major: task
+            minor: report
+          priority:
+            - blocking
+            - major
+
+      - corrections:
+          role: worker
+          optional: true
+          requires:
+            - blocking_or_major_findings
+          task_mode: one_at_a_time
+          session: fresh_per_task
+          tests: related_only
+          fallback:
+            role: expert
+            requires:
+              - human_decision
+            session: fresh
+
+      - correction_review:
+          role: expert
+          optional: true
+          requires:
+            - correction_completed
+          scope: corrected_areas
+          expand_scope: when_needed
+
+      - validation:
+          requires:
+            - review_completed
+            - blocking_and_major_findings_resolved
+          mode: human
+
+  debug:
+    requires:
+      - bug_report
+
+    steps:
+      - reproduction:
+          role: expert
+          requires:
+            - bug_report
+          before_code_changes: true
+
+      - analysis:
+          role: expert
+          requires:
+            - bug_reproduced
+          root_cause: required
+          evidence: required
+          confidence: sufficient
+
+      - plan:
+          role: expert
+          requires:
+            - root_cause_identified
+            - root_cause_supported_by_evidence
+            - root_cause_confidence_sufficient
+
+      - implementation:
+          role: worker
+          requires:
+            - correction_plan_completed
+          task_mode: one_at_a_time
+          session: fresh_per_task
+          context:
+            - bug_report
+            - available_ticket_context
+            - root_cause
+            - correction_plan
+            - available_technical_context
+          tests: related_only
+          fallback:
+            role: expert
+            requires:
+              - human_decision
+            session: fresh
+
+      - coverage:
+          role: worker
+          requires:
+            - fix_completed
+          regression_test: after_fix
+          tests: related_only
+
+      - review:
+          role: expert
+          requires:
+            - fix_completed
+            - regression_test_added
+            - related_tests_passed
+          trigger: manual
+          input:
+            diff: full_against_target_branch
+            commit_history: ignored
+          focus:
+            - bugs
+            - regressions
+          tests: not_run
+          findings:
+            blocking: task
+            major: task
+            minor: report
+          priority:
+            - blocking
+            - major
+
+      - corrections:
+          role: worker
+          optional: true
+          requires:
+            - blocking_or_major_findings
+          task_mode: one_at_a_time
+          session: fresh_per_task
+          tests: related_only
+          fallback:
+            role: expert
+            requires:
+              - human_decision
+            session: fresh
+
+      - correction_review:
+          role: expert
+          optional: true
+          requires:
+            - correction_completed
+          scope: corrected_areas
+          expand_scope: when_needed
+
+      - validation:
+          requires:
+            - review_completed
+            - blocking_and_major_findings_resolved
+          mode: human
