@@ -1,5 +1,36 @@
 version: 1
 
+agent_execution:
+  source_of_truth: workflow.yaml
+  workflow_selection:
+    feature:
+      when:
+        - new_feature
+        - functional_change
+    debug:
+      when:
+        - bug
+        - regression
+  execution:
+    step_order: declared
+    respect_requires: true
+    execute_active_role_only: true
+    optional_steps: conditional
+    human_validation: blocking
+    manual_transition: stop_and_wait
+    fallback_human_decision: stop_and_wait
+  state:
+    required: true
+    suggested_path: .agentic/state.yaml
+    fields:
+      - workflow
+      - active_role
+      - current_step
+      - completed_steps
+      - conditions
+    lifecycle: runtime
+    persistence: optional
+
 roles:
   expert:
     responsibilities:
