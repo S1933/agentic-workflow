@@ -1,0 +1,23 @@
+version: 1
+
+roles:
+  expert:
+    capability: high_reasoning
+
+  worker:
+    capability: fast_coding
+
+bindings:
+  high_reasoning:
+    selection: human
+    runtimes:
+      claude-code:
+        model: opus
+      codex:
+        model: astra
+
+  fast_coding:
+    selection: human
+    runtimes:
+      opencode:
+        model: default
