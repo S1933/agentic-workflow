@@ -33,7 +33,77 @@ Le workflow est volontairement indépendant :
 
 Toutes les transitions du workflow restent contrôlées manuellement par le développeur.
 
-## Setup recommandé
+## CLI Agentic
+
+`agentic` orchestre Claude Code, Codex et OpenCode via leurs CLI locaux.
+Il charge le workflow global et les bindings de runtimes, utilise le dossier
+courant comme cible et enregistre son état hors du repository applicatif.
+
+Prérequis : Go 1.23+, macOS ou Linux, Git pour la review, et les runtimes
+choisis installés, authentifiés et configurés pour les opérations souhaitées.
+
+```bash
+git clone git@github.com:S1933/agentic-workflow.git ~/.agentic-workflow
+cd ~/.agentic-workflow
+go build -o ~/.local/bin/agentic ./cmd/agentic
+```
+
+Créer `~/.local/bin` si nécessaire et l'ajouter au `PATH`. Depuis un projet :
+
+```bash
+agentic feature
+agentic debug
+agentic status
+agentic resume
+agentic reset
+```
+
+`feature` et `debug` démarrent un workflow ; il ne peut y en avoir qu'un actif
+par projet. `resume` propose l'action suivante et exige une décision explicite.
+Chaque invocation exécute au maximum une tâche agent. `accept` valide le
+résultat sans lancer la suite ; `next`, dans le dialogue de `resume`, autorise
+le passage à l'étape suivante. Il n'existe pas de commande `agentic next`.
+
+`reset` demande confirmation puis archive l'exécution. Il ne restaure ni ne
+supprime les modifications de code. `status` est utilisable sans terminal ;
+les autres commandes requièrent une saisie humaine interactive.
+
+La configuration globale est dans `~/.agentic-workflow/` :
+
+```bash
+agentic feature --config-dir /chemin/agentic-workflow
+```
+
+Les modèles de `runtime.yml` sont transmis tels quels, sauf `default`, qui
+signifie « utiliser le modèle configuré dans ce runtime ». Adapter ces valeurs
+à ses outils et à ses accès ; le CLI ne remplace jamais un modèle ou un runtime
+indisponible. Les permissions et l'authentification des runtimes restent sous
+leur contrôle ; aucun flag de contournement des permissions n'est ajouté.
+
+L'état est conservé sous `${XDG_STATE_HOME:-~/.local/state}/agentic-workflow/`.
+`--state-dir /chemin/externe` permet de remplacer cette racine. Un chemin
+interne au projet est refusé. Chaque run conserve les configurations utilisées,
+les prompts, les résultats et les décisions humaines. Une mise à jour des YAML
+n'affecte pas les runs en cours.
+
+Les textes demandés peuvent être saisis directement ou chargés avec `@/path/file.md`.
+Le MVP utilise le contenu des tickets fourni par l'utilisateur ; il ne publie
+pas de spec et ne modifie pas de tickets. La publication de la spec est une
+attestation humaine obligatoire. Les tâches proposées sont saisies et validées
+une par une, puis exécutées dans des sessions indépendantes.
+
+Voir [le guide du CLI](docs/cli.md) pour les reprises, checkpoints, conditions
+et limites, et [l'analyse et le plan](docs/cli-orchestration-analysis.md).
+
+```bash
+go test ./...
+go test -race ./...
+go vet ./...
+```
+
+Les tests utilisent des runtimes simulés et ne consomment pas de tokens IA.
+
+## Utilisation sans le CLI
 
 Le workflow est conçu pour être installé une seule fois au niveau utilisateur et partagé entre tous les projets locaux.
 

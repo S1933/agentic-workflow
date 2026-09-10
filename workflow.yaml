@@ -21,15 +21,15 @@ agent_execution:
     fallback_human_decision: stop_and_wait
   state:
     required: true
-    suggested_path: .agentic/state.yaml
+    suggested_path: ~/.local/state/agentic-workflow/
     fields:
       - workflow
-      - active_role
       - current_step
-      - completed_steps
+      - status
+      - steps
       - conditions
-    lifecycle: runtime
-    persistence: optional
+    lifecycle: workflow
+    persistence: required
 
 roles:
   expert:
@@ -51,6 +51,34 @@ roles:
 shared:
   transitions: manual
   final_validation: human
+
+# Completion means explicitly accepted by the developer, never just exit code 0.
+# Mutable observations are explicitly invalidated when an agent runs again.
+conditions:
+  functional_request: {kind: input}
+  acceptance_criteria: {kind: input}
+  bug_report: {kind: input}
+  analysis_completed: {kind: completion, step: analysis}
+  design_validated_by_human: {kind: completion, step: design}
+  spec_published: {kind: human, after: spec}
+  tasks_validated_by_human: {kind: completion, step: tasks}
+  backend_tasks_completed: {kind: completion, step: backend}
+  related_tests_passed: {kind: human, invalidate_on_execution: true}
+  manual_backend_validation: {kind: human, after: backend, invalidate_on_execution: true}
+  backend_check_completed_when_applicable: {kind: completion, step: backend_check, allow_skipped: true}
+  all_tasks_completed: {kind: aggregate, steps: [backend, frontend], allow_skipped: true}
+  e2e_passed: {kind: completion, step: e2e}
+  review_completed: {kind: completion, step: review}
+  blocking_or_major_findings: {kind: human, after: review}
+  correction_completed: {kind: completion, step: corrections}
+  blocking_and_major_findings_resolved: {kind: human, after: review, invalidate_on_execution: true}
+  bug_reproduced: {kind: human, after: reproduction}
+  root_cause_identified: {kind: human, after: analysis}
+  root_cause_supported_by_evidence: {kind: human, after: analysis}
+  root_cause_confidence_sufficient: {kind: human, after: analysis}
+  correction_plan_completed: {kind: completion, step: plan}
+  fix_completed: {kind: completion, step: implementation}
+  regression_test_added: {kind: human, after: coverage, invalidate_on_execution: true}
 
 workflows:
   feature:
@@ -74,6 +102,7 @@ workflows:
 
       - design:
           role: expert
+          validation: human
           requires:
             - analysis_completed
 
@@ -111,6 +140,8 @@ workflows:
 
       - backend_check:
           optional: true
+          mode: human
+          when: backend_tasks_completed
           requires:
             - backend_tasks_completed
             - related_tests_passed
@@ -166,6 +197,7 @@ workflows:
       - corrections:
           role: worker
           optional: true
+          when: blocking_or_major_findings
           requires:
             - blocking_or_major_findings
           task_mode: one_at_a_time
@@ -180,6 +212,7 @@ workflows:
       - correction_review:
           role: expert
           optional: true
+          when: correction_completed
           requires:
             - correction_completed
           scope: corrected_areas
@@ -268,6 +301,7 @@ workflows:
       - corrections:
           role: worker
           optional: true
+          when: blocking_or_major_findings
           requires:
             - blocking_or_major_findings
           task_mode: one_at_a_time
@@ -282,6 +316,7 @@ workflows:
       - correction_review:
           role: expert
           optional: true
+          when: correction_completed
           requires:
             - correction_completed
           scope: corrected_areas
